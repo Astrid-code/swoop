@@ -1,0 +1,214 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 400px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #1a1a2e;
+  color: #eee;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  max-height: 500px;
+}
+
+.search-box {
+  padding: 12px 16px;
+  border-bottom: 1px solid #333;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 16px;
+  border: none;
+  border-radius: 8px;
+  background: #16213e;
+  color: #eee;
+  outline: none;
+}
+
+.search-box input::placeholder {
+  color: #666;
+}
+
+.search-box input:focus {
+  box-shadow: 0 0 0 2px #0f3460;
+}
+
+.tabs-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 350px;
+}
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #252542;
+  transition: background 0.15s;
+}
+
+.tab-item:hover,
+.tab-item.selected {
+  background: #16213e;
+}
+
+.tab-item.selected {
+  border-left: 3px solid #e94560;
+}
+
+.tab-favicon {
+  width: 16px;
+  height: 16px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.tab-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tab-title {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-url {
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.tab-pinned {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #0f3460;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  font-size: 11px;
+  color: #666;
+  border-top: 1px solid #333;
+}
+
+.settings-btn {
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.settings-btn:hover {
+  opacity: 1;
+}
+
+.no-results {
+  padding: 40px 20px;
+  text-align: center;
+  color: #666;
+}
+
+/* Settings Panel */
+.settings-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #1a1a2e;
+  z-index: 10;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #333;
+  font-weight: 600;
+}
+
+.close-btn {
+  cursor: pointer;
+  font-size: 20px;
+  opacity: 0.7;
+}
+
+.close-btn:hover {
+  opacity: 1;
+}
+
+.settings-content {
+  padding: 16px;
+}
+
+.settings-content label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.settings-content input[type='number'] {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  border: none;
+  border-radius: 6px;
+  background: #16213e;
+  color: #eee;
+  margin-bottom: 8px;
+}
+
+.settings-content small {
+  display: block;
+  color: #666;
+  margin-bottom: 16px;
+  font-size: 12px;
+}
+
+.settings-content button {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  border: none;
+  border-radius: 6px;
+  background: #e94560;
+  color: white;
+  cursor: pointer;
+}
+
+.settings-content button:hover {
+  background: #c73e54;
+}
+
+/* Scrollbar */
+.tabs-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tabs-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabs-list::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}

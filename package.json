@@ -1,0 +1,24 @@
+{
+  "name": "swoop",
+  "description": "自动关闭超时未使用的标签页，并提供快捷搜索功能",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "postinstall": "wxt prepare"
+  },
+  "dependencies": {
+    "preact": "^10.25.4"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.5",
+    "typescript": "^5.9.3",
+    "wxt": "^0.20.20"
+  }
+}
