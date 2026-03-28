@@ -9,12 +9,12 @@ export default defineConfig({
   manifest: {
     name: 'Swoop',
     description: '自动关闭超时未使用的标签页，并提供快捷搜索功能',
-    permissions: ['tabs', 'storage', 'alarms'],
+    permissions: ['tabs', 'storage', 'alarms', 'bookmarks', 'history'],
     commands: {
       'open-quick-search': {
         suggested_key: {
-          default: 'Ctrl+Shift+Space',
-          mac: 'Command+T',
+          default: 'Ctrl+Shift+K',
+          mac: 'Command+Shift+K',
         },
         description: '打开快捷搜索',
       },

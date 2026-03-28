@@ -1,51 +1,75 @@
 import { useState, useEffect, useCallback, useRef } from 'preact/hooks';
 
-interface TabInfo {
-  id: number;
-  windowId: number;
+interface SearchResult {
+  id: string;
+  kind: 'tab' | 'history' | 'bookmark';
   title: string;
   url: string;
-  favIconUrl?: string;
-  pinned: boolean;
+  subtitle: string;
+  icon?: string;
+  tabId?: number;
+  windowId?: number;
 }
 
-export function App() {
+interface AppProps {
+  mode?: 'popup' | 'overlay';
+  onRequestClose?: () => void;
+}
+
+export function App({ mode = 'popup', onRequestClose }: AppProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [tabs, setTabs] = useState<TabInfo[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isOverlay = mode === 'overlay';
 
-  const filteredTabs = tabs.filter((tab) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return tab.title.toLowerCase().includes(q) || tab.url.toLowerCase().includes(q);
-  });
-
-  const loadTabs = useCallback(async () => {
-    const result = await browser.tabs.query({});
-    setTabs(
-      result.map((tab) => ({
-        id: tab.id!,
-        windowId: tab.windowId,
-        title: tab.title || '',
-        url: tab.url || '',
-        favIconUrl: tab.favIconUrl,
-        pinned: tab.pinned,
-      }))
-    );
+  const runSearch = useCallback(async (query: string) => {
+    const searchResults = await browser.runtime.sendMessage({ type: 'searchEverything', query });
+    setResults(searchResults || []);
   }, []);
 
-  const switchTab = useCallback(async (tab: TabInfo) => {
-    await browser.tabs.update(tab.id, { active: true });
-    await browser.windows.update(tab.windowId, { focused: true });
+  const openResult = useCallback(async (result: SearchResult) => {
+    await browser.runtime.sendMessage({ type: 'openSearchResult', result });
+    await closeView();
+  }, []);
+
+  const closeView = useCallback(async () => {
+    if (onRequestClose) {
+      onRequestClose();
+      return;
+    }
+
+    const currentTab = await browser.tabs.getCurrent();
+    if (currentTab?.id) {
+      await browser.tabs.remove(currentTab.id);
+      return;
+    }
+
     window.close();
   }, []);
 
   useEffect(() => {
-    loadTabs();
+    runSearch('');
     inputRef.current?.focus();
-  }, [loadTabs]);
+  }, [runSearch]);
+
+  useEffect(() => {
+    if (!isOverlay) return;
+
+    const handleOpen = () => {
+      setShowSettings(false);
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    };
+
+    window.addEventListener('swoop:open', handleOpen);
+    return () => window.removeEventListener('swoop:open', handleOpen);
+  }, [isOverlay]);
+
+  useEffect(() => {
+    runSearch(searchQuery);
+  }, [runSearch, searchQuery]);
 
   useEffect(() => {
     const handleKeydown = (e: KeyboardEvent) => {
@@ -53,71 +77,77 @@ export function App() {
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, filteredTabs.length - 1));
+        setSelectedIndex((i) => Math.min(i + 1, results.length - 1));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        const selected = filteredTabs[selectedIndex];
-        if (selected) switchTab(selected);
+        const selected = results[selectedIndex];
+        if (selected) openResult(selected);
       } else if (e.key === 'Escape') {
-        window.close();
+        closeView();
       }
     };
 
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
-  }, [filteredTabs, selectedIndex, showSettings, switchTab]);
+  }, [closeView, openResult, results, selectedIndex, showSettings]);
 
   useEffect(() => {
     setSelectedIndex(0);
   }, [searchQuery]);
 
   return (
-    <div class="container">
-      <div class="search-box">
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="搜索标签页..."
-          value={searchQuery}
-          onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
-        />
-      </div>
+    <div class={`app-shell mode-${mode}`}>
+      <div class="container">
+        <div class="search-box">
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="搜索历史记录、书签和标签页..."
+            value={searchQuery}
+            onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
+          />
+        </div>
 
-      <div class="tabs-list">
-        {filteredTabs.map((tab, index) => (
-          <div
-            key={tab.id}
-            class={`tab-item ${index === selectedIndex ? 'selected' : ''}`}
-            onClick={() => switchTab(tab)}
-            onMouseEnter={() => setSelectedIndex(index)}
-          >
-            <img class="tab-favicon" src={tab.favIconUrl || '/icon/16.png'} alt="" />
-            <div class="tab-info">
-              <div class="tab-title">{tab.title || '无标题'}</div>
-              <div class="tab-url">{tab.url}</div>
+        <div class="tabs-list">
+          {results.map((result, index) => (
+            <div
+              key={result.id}
+              class={`tab-item ${index === selectedIndex ? 'selected' : ''}`}
+              onClick={() => openResult(result)}
+              onMouseEnter={() => setSelectedIndex(index)}
+            >
+              <div class={`result-icon kind-${result.kind}`}>
+                {result.kind === 'tab' && <img class="tab-favicon" src={result.icon || '/icon/16.png'} alt="" />}
+                {result.kind === 'history' && <span>H</span>}
+                {result.kind === 'bookmark' && <span>B</span>}
+              </div>
+              <div class="tab-info">
+                <div class="tab-title">{result.title || '无标题'}</div>
+                <div class="tab-url">{result.url}</div>
+              </div>
+              <span class={`tab-pinned source-${result.kind}`}>{result.subtitle}</span>
             </div>
-            {tab.pinned && <span class="tab-pinned">固定</span>}
-          </div>
-        ))}
-        {filteredTabs.length === 0 && <div class="no-results">没有找到匹配的标签页</div>}
-      </div>
+          ))}
+          {results.length === 0 && <div class="no-results">没有找到匹配的历史记录、书签或标签页</div>}
+        </div>
 
-      <div class="footer">
-        <span class="hint">↑↓ 选择 · Enter 切换 · Esc 关闭</span>
-        <span class="settings-btn" onClick={() => setShowSettings(true)}>
-          ⚙️ 设置
-        </span>
-      </div>
+        <div class="footer">
+          <span class="hint">↑↓ 选择 · Enter 打开 · Esc 关闭</span>
+          <span class="settings-btn" onClick={() => setShowSettings(true)}>
+            设置
+          </span>
+        </div>
 
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+        {showSettings && <SettingsPanel isOverlay={isOverlay} onClose={() => setShowSettings(false)} />}
+      </div>
     </div>
   );
 }
 
-function SettingsPanel({ onClose }: { onClose: () => void }) {
+function SettingsPanel({ onClose, isOverlay }: { onClose: () => void; isOverlay: boolean }) {
   const [timeoutMinutes, setTimeoutMinutes] = useState(30);
 
   useEffect(() => {
@@ -134,7 +164,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div class="settings-panel">
+    <div class={`settings-panel ${isOverlay ? 'overlay' : ''}`}>
       <div class="settings-header">
         <span>设置</span>
         <span class="close-btn" onClick={onClose}>
