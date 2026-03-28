@@ -1,7 +1,6 @@
 export default defineBackground(() => {
   const DEFAULT_TIMEOUT_MINUTES = 30;
   const CHECK_INTERVAL_MINUTES = 1;
-  const QUICK_SEARCH_PATH = '/popup.html';
 
   type SearchResult =
     | {
@@ -71,14 +70,14 @@ export default defineBackground(() => {
     if (command === 'open-quick-search') {
       const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
 
-      if (activeTab?.id) {
-        try {
-          await browser.tabs.sendMessage(activeTab.id, { type: 'toggle-overlay' });
-          return;
-        } catch {}
+      if (!activeTab?.id || !canInjectOverlay(activeTab.url)) {
+        return;
       }
 
-      await browser.tabs.create({ url: browser.runtime.getURL(QUICK_SEARCH_PATH) });
+      const opened = await ensureOverlayOpened(activeTab.id);
+      if (!opened) {
+        console.warn('Swoop overlay could not be opened on this page.', activeTab.url);
+      }
     }
   });
 
@@ -200,5 +199,52 @@ export default defineBackground(() => {
     }
 
     await browser.tabs.create({ url: result.url });
+  }
+
+  function canInjectOverlay(url?: string) {
+    if (!url) return false;
+
+    return !(
+      url.startsWith('chrome://') ||
+      url.startsWith('edge://') ||
+      url.startsWith('about:') ||
+      url.startsWith('chrome-extension://') ||
+      url.startsWith('moz-extension://') ||
+      url.startsWith('view-source:')
+    );
+  }
+
+  async function ensureOverlayOpened(tabId: number) {
+    if (await tryToggleOverlay(tabId)) {
+      return true;
+    }
+
+    const contentScriptFiles = browser.runtime.getManifest().content_scripts?.find((script) =>
+      script.matches?.includes('<all_urls>')
+    )?.js;
+
+    if (!contentScriptFiles?.length) {
+      return false;
+    }
+
+    try {
+      await browser.scripting.executeScript({
+        target: { tabId },
+        files: contentScriptFiles,
+      });
+    } catch {
+      return false;
+    }
+
+    return tryToggleOverlay(tabId);
+  }
+
+  async function tryToggleOverlay(tabId: number) {
+    try {
+      await browser.tabs.sendMessage(tabId, { type: 'toggle-overlay' });
+      return true;
+    } catch {
+      return false;
+    }
   }
 });

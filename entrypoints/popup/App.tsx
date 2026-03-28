@@ -120,7 +120,9 @@ export function App({ mode = 'popup', onRequestClose }: AppProps) {
               onMouseEnter={() => setSelectedIndex(index)}
             >
               <div class={`result-icon kind-${result.kind}`}>
-                {result.kind === 'tab' && <img class="tab-favicon" src={result.icon || '/icon/16.png'} alt="" />}
+                {result.kind === 'tab' && (
+                  result.icon ? <img class="tab-favicon" src={result.icon} alt="" /> : <span>T</span>
+                )}
                 {result.kind === 'history' && <span>H</span>}
                 {result.kind === 'bookmark' && <span>B</span>}
               </div>

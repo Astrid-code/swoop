@@ -9,7 +9,8 @@ export default defineConfig({
   manifest: {
     name: 'Swoop',
     description: '自动关闭超时未使用的标签页，并提供快捷搜索功能',
-    permissions: ['tabs', 'storage', 'alarms', 'bookmarks', 'history'],
+    permissions: ['tabs', 'storage', 'alarms', 'bookmarks', 'history', 'scripting'],
+    host_permissions: ['<all_urls>'],
     commands: {
       'open-quick-search': {
         suggested_key: {
