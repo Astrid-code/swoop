@@ -22,6 +22,7 @@ export function App({ mode = 'popup', onRequestClose }: AppProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
   const isOverlay = mode === 'overlay';
 
   const runSearch = useCallback(async (query: string) => {
@@ -98,9 +99,14 @@ export function App({ mode = 'popup', onRequestClose }: AppProps) {
     setSelectedIndex(0);
   }, [searchQuery]);
 
+  useEffect(() => {
+    const activeItem = itemRefs.current[selectedIndex];
+    activeItem?.scrollIntoView({ block: 'nearest' });
+  }, [selectedIndex]);
+
   return (
-    <div class={`app-shell mode-${mode}`}>
-      <div class="container">
+    <div class={`app-shell mode-${mode}`} onClick={() => isOverlay && closeView()}>
+      <div class="container" onClick={(e) => e.stopPropagation()}>
         <div class="search-box">
           <input
             ref={inputRef}
@@ -115,6 +121,9 @@ export function App({ mode = 'popup', onRequestClose }: AppProps) {
           {results.map((result, index) => (
             <div
               key={result.id}
+              ref={(node) => {
+                itemRefs.current[index] = node;
+              }}
               class={`tab-item ${index === selectedIndex ? 'selected' : ''}`}
               onClick={() => openResult(result)}
               onMouseEnter={() => setSelectedIndex(index)}
@@ -150,7 +159,8 @@ export function App({ mode = 'popup', onRequestClose }: AppProps) {
 }
 
 function SettingsPanel({ onClose, isOverlay }: { onClose: () => void; isOverlay: boolean }) {
-  const [timeoutMinutes, setTimeoutMinutes] = useState(30);
+  const [timeoutMinutes, setTimeoutMinutes] = useState(12 * 60);
+  const [statusMessage, setStatusMessage] = useState('');
 
   useEffect(() => {
     browser.storage.local.get('timeoutMinutes').then((config) => {
@@ -158,11 +168,24 @@ function SettingsPanel({ onClose, isOverlay }: { onClose: () => void; isOverlay:
     });
   }, []);
 
-  const saveSettings = async () => {
-    if (timeoutMinutes > 0 && timeoutMinutes <= 1440) {
-      await browser.storage.local.set({ timeoutMinutes });
-      onClose();
+  const handleTimeoutChange = async (value: string) => {
+    const nextValue = parseInt(value, 10);
+
+    if (Number.isNaN(nextValue)) {
+      setTimeoutMinutes(0);
+      setStatusMessage('请输入 1 到 1440 之间的分钟数');
+      return;
     }
+
+    setTimeoutMinutes(nextValue);
+
+    if (nextValue < 1 || nextValue > 1440) {
+      setStatusMessage('请输入 1 到 1440 之间的分钟数');
+      return;
+    }
+
+    await browser.storage.local.set({ timeoutMinutes: nextValue });
+    setStatusMessage('已自动保存');
   };
 
   return (
@@ -174,17 +197,17 @@ function SettingsPanel({ onClose, isOverlay }: { onClose: () => void; isOverlay:
         </span>
       </div>
       <div class="settings-content">
-        <label for="timeout-input">标签页超时时间（分钟）</label>
+        <label for="timeout-input">未固定标签页自动关闭时间（分钟）</label>
         <input
           id="timeout-input"
           type="number"
           min="1"
           max="1440"
           value={timeoutMinutes}
-          onInput={(e) => setTimeoutMinutes(parseInt((e.target as HTMLInputElement).value) || 30)}
+          onInput={(e) => handleTimeoutChange((e.target as HTMLInputElement).value)}
         />
-        <small>超过此时间未活动的标签页将被自动关闭（固定标签页除外）</small>
-        <button onClick={saveSettings}>保存</button>
+        <small>固定标签页会一直保留。未固定标签页在超过这个时间未查看后会被自动关闭。</small>
+        <div class="settings-status">{statusMessage || '修改后会自动保存'}</div>
       </div>
     </div>
   );

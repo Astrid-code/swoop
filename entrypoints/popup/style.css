@@ -331,25 +331,14 @@ body {
 .settings-content small {
   display: block;
   color: var(--muted-foreground);
-  margin-bottom: 18px;
+  margin-bottom: 10px;
   font-size: 12px;
   line-height: 1.5;
 }
 
-.settings-content button {
-  width: 100%;
-  padding: 10px 14px;
-  font-size: 14px;
-  border: none;
-  border-radius: 10px;
-  background: #18181b;
-  color: white;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.settings-content button:hover {
-  filter: brightness(1.05);
+.settings-status {
+  font-size: 12px;
+  color: var(--muted-foreground);
 }
 
 /* Scrollbar */

@@ -1,6 +1,9 @@
 export default defineBackground(() => {
-  const DEFAULT_TIMEOUT_MINUTES = 30;
+  const DEFAULT_TIMEOUT_MINUTES = 12 * 60;
   const CHECK_INTERVAL_MINUTES = 1;
+  const LAST_CHECK_AT_KEY = 'lastCheckAt';
+  const SLEEP_GAP_THRESHOLD_MS = 5 * 60 * 1000;
+  const CLOSE_CANDIDATE_PREFIX = 'closeCandidate_';
 
   type SearchResult =
     | {
@@ -26,16 +29,26 @@ export default defineBackground(() => {
     if (!config.timeoutMinutes) {
       await browser.storage.local.set({ timeoutMinutes: DEFAULT_TIMEOUT_MINUTES });
     }
-    browser.alarms.create('checkTabs', { periodInMinutes: CHECK_INTERVAL_MINUTES });
+    await initializePeriodicCheck();
     console.log('Swoop installed');
   });
 
+  browser.runtime.onStartup?.addListener(async () => {
+    await initializePeriodicCheck();
+  });
+
   browser.tabs.onActivated.addListener(async (activeInfo) => {
-    await browser.storage.local.set({ [`tab_${activeInfo.tabId}`]: Date.now() });
+    await markTabAsActive(activeInfo.tabId);
   });
 
   browser.tabs.onRemoved.addListener(async (tabId) => {
-    await browser.storage.local.remove(`tab_${tabId}`);
+    await clearTabState(tabId);
+  });
+
+  browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+    if (changeInfo.status === 'complete' || typeof changeInfo.url === 'string' || changeInfo.audible === true) {
+      await markTabAsActive(tabId);
+    }
   });
 
   browser.alarms.onAlarm.addListener(async (alarm) => {
@@ -48,19 +61,43 @@ export default defineBackground(() => {
     const config = await browser.storage.local.get('timeoutMinutes');
     const timeoutMs = (config.timeoutMinutes || DEFAULT_TIMEOUT_MINUTES) * 60 * 1000;
     const now = Date.now();
+    const { [LAST_CHECK_AT_KEY]: lastCheckAt } = await browser.storage.local.get(LAST_CHECK_AT_KEY);
+
+    await browser.storage.local.set({ [LAST_CHECK_AT_KEY]: now });
+
+    if (typeof lastCheckAt === 'number' && now - lastCheckAt > SLEEP_GAP_THRESHOLD_MS) {
+      return;
+    }
 
     const tabs = await browser.tabs.query({});
     const activityData = await browser.storage.local.get(null);
 
     for (const tab of tabs) {
       if (tab.pinned) continue;
+      if (tab.active) continue;
+      if (tab.audible) continue;
       if (tab.url?.startsWith('chrome://') || tab.url?.startsWith('edge://')) continue;
 
       const lastActive = activityData[`tab_${tab.id}`] || tab.lastAccessed || now;
-      if (now - lastActive > timeoutMs) {
+      const candidateKey = `${CLOSE_CANDIDATE_PREFIX}${tab.id}`;
+      const candidateSince = activityData[candidateKey];
+
+      if (now - lastActive <= timeoutMs) {
+        if (candidateSince) {
+          await browser.storage.local.remove(candidateKey);
+        }
+        continue;
+      }
+
+      if (!candidateSince) {
+        await browser.storage.local.set({ [candidateKey]: now });
+        continue;
+      }
+
+      if (now - candidateSince >= CHECK_INTERVAL_MINUTES * 60 * 1000) {
         try {
           await browser.tabs.remove(tab.id!);
-          await browser.storage.local.remove(`tab_${tab.id}`);
+          await clearTabState(tab.id!);
         } catch {}
       }
     }
@@ -246,5 +283,25 @@ export default defineBackground(() => {
     } catch {
       return false;
     }
+  }
+
+  async function initializePeriodicCheck() {
+    await browser.alarms.create('checkTabs', { periodInMinutes: CHECK_INTERVAL_MINUTES });
+
+    const { [LAST_CHECK_AT_KEY]: lastCheckAt } = await browser.storage.local.get(LAST_CHECK_AT_KEY);
+    if (typeof lastCheckAt !== 'number') {
+      await browser.storage.local.set({ [LAST_CHECK_AT_KEY]: Date.now() });
+    }
+  }
+
+  async function markTabAsActive(tabId: number) {
+    await browser.storage.local.set({
+      [`tab_${tabId}`]: Date.now(),
+    });
+    await browser.storage.local.remove(`${CLOSE_CANDIDATE_PREFIX}${tabId}`);
+  }
+
+  async function clearTabState(tabId: number) {
+    await browser.storage.local.remove([`tab_${tabId}`, `${CLOSE_CANDIDATE_PREFIX}${tabId}`]);
   }
 });
